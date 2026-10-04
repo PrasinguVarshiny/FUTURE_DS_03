@@ -1,0 +1,981 @@
+# ================================================================
+# FUTURE INTERNS - DATA SCIENCE & ANALYTICS
+# TASK 3 - MARKETING FUNNEL & CONVERSION PERFORMANCE ANALYSIS
+# COMPACT PROFESSIONAL INTERACTIVE DASHBOARD
+# ================================================================
+
+import pandas as pd
+import numpy as np
+import requests
+import zipfile
+import io
+import os
+import glob
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+
+# ================================================================
+# 1. DOWNLOAD DATASET
+# ================================================================
+
+url = "https://archive.ics.uci.edu/ml/machine-learning-databases/00222/bank.zip"
+
+response = requests.get(url)
+
+if response.status_code != 200:
+    raise Exception("Dataset download failed.")
+
+data_folder = "future_interns_task3_data"
+
+with zipfile.ZipFile(io.BytesIO(response.content)) as z:
+    z.extractall(data_folder)
+
+
+# ================================================================
+# 2. FIND bank-full.csv
+# ================================================================
+
+csv_files = glob.glob(
+    f"{data_folder}/**/*.csv",
+    recursive=True
+)
+
+bank_file = None
+
+for file in csv_files:
+    if os.path.basename(file).lower() == "bank-full.csv":
+        bank_file = file
+        break
+
+if bank_file is None:
+    raise FileNotFoundError("bank-full.csv was not found.")
+
+
+# ================================================================
+# 3. LOAD DATA
+# ================================================================
+
+df = pd.read_csv(bank_file, sep=";")
+
+print("Rows:", df.shape[0])
+print("Columns:", df.shape[1])
+
+
+# ================================================================
+# 4. DATA CLEANING
+# ================================================================
+
+df = df.drop_duplicates().copy()
+
+df["conversion"] = df["y"].map({
+    "yes": 1,
+    "no": 0
+})
+
+df["conversion_status"] = df["y"].map({
+    "yes": "Converted",
+    "no": "Not Converted"
+})
+
+
+# ================================================================
+# 5. AGE GROUPS
+# ================================================================
+
+df["age_group"] = pd.cut(
+    df["age"],
+    bins=[0, 25, 35, 45, 55, 65, 100],
+    labels=[
+        "18-25",
+        "26-35",
+        "36-45",
+        "46-55",
+        "56-65",
+        "66+"
+    ],
+    include_lowest=True
+)
+
+
+# ================================================================
+# 6. KPI CALCULATIONS
+# ================================================================
+
+total_contacts = len(df)
+
+total_conversions = int(
+    df["conversion"].sum()
+)
+
+total_dropoffs = (
+    total_contacts - total_conversions
+)
+
+conversion_rate = (
+    total_conversions / total_contacts
+) * 100
+
+dropoff_rate = (
+    total_dropoffs / total_contacts
+) * 100
+
+
+# ================================================================
+# 7. ANALYSIS DATA
+# ================================================================
+
+# Contact Channel
+channel_data = (
+    df.groupby("contact")["conversion"]
+    .mean()
+    .mul(100)
+    .sort_values(ascending=False)
+)
+
+
+# Age Group
+age_data = (
+    df.groupby(
+        "age_group",
+        observed=True
+    )["conversion"]
+    .mean()
+    .mul(100)
+)
+
+
+# Job
+job_data = (
+    df.groupby("job")["conversion"]
+    .mean()
+    .mul(100)
+    .sort_values(ascending=True)
+)
+
+
+# Education
+education_data = (
+    df.groupby("education")["conversion"]
+    .mean()
+    .mul(100)
+    .sort_values(ascending=False)
+)
+
+
+# Month
+month_order = [
+    "jan",
+    "feb",
+    "mar",
+    "apr",
+    "may",
+    "jun",
+    "jul",
+    "aug",
+    "sep",
+    "oct",
+    "nov",
+    "dec"
+]
+
+month_data = (
+    df.groupby("month")["conversion"]
+    .mean()
+    .mul(100)
+    .reindex(month_order)
+)
+
+
+# Previous Campaign
+previous_data = (
+    df.groupby("poutcome")["conversion"]
+    .mean()
+    .mul(100)
+    .sort_values(ascending=False)
+)
+
+
+# ================================================================
+# 8. PROFESSIONAL COLOR PALETTE
+# ================================================================
+
+NAVY = "#0F172A"
+DARK_BLUE = "#1E293B"
+BLUE = "#2563EB"
+TEAL = "#14B8A6"
+LIGHT_BLUE = "#60A5FA"
+LIGHT_TEAL = "#5EEAD4"
+GREEN = "#22C55E"
+RED = "#EF4444"
+GRAY = "#64748B"
+LIGHT_GRAY = "#E2E8F0"
+BACKGROUND = "#F8FAFC"
+WHITE = "#FFFFFF"
+
+
+# ================================================================
+# 9. CREATE COMPACT DASHBOARD
+# ================================================================
+
+fig = make_subplots(
+
+    rows=6,
+    cols=2,
+
+    specs=[
+
+        # Row 1 - KPI
+        [
+            {"type": "indicator"},
+            {"type": "indicator"}
+        ],
+
+        # Row 2 - KPI
+        [
+            {"type": "indicator"},
+            {"type": "indicator"}
+        ],
+
+        # Row 3
+        [
+            {"type": "funnel"},
+            {"type": "bar"}
+        ],
+
+        # Row 4
+        [
+            {"type": "bar"},
+            {"type": "bar"}
+        ],
+
+        # Row 5
+        [
+            {"type": "bar"},
+            {"type": "scatter"}
+        ],
+
+        # Row 6
+        [
+            {"type": "bar"},
+            {"type": "bar"}
+        ]
+    ],
+
+    # IMPORTANT: Reduced spacing
+    vertical_spacing=0.025,
+
+    horizontal_spacing=0.08,
+
+    # Makes KPI rows smaller
+    row_heights=[
+        0.10,
+        0.10,
+        0.20,
+        0.20,
+        0.20,
+        0.20
+    ],
+
+    subplot_titles=[
+
+        "Total Marketing Contacts",
+        "Successful Conversions",
+
+        "Conversion Rate",
+        "Drop-off Rate",
+
+        "Marketing Funnel",
+        "Conversion by Contact Channel",
+
+        "Conversion by Age Group",
+        "Conversion by Job",
+
+        "Conversion by Education",
+        "Monthly Conversion Trend",
+
+        "Previous Campaign Outcome",
+        "Conversion Overview"
+    ]
+)
+
+
+# ================================================================
+# 10. KPI - TOTAL CONTACTS
+# ================================================================
+
+fig.add_trace(
+
+    go.Indicator(
+
+        mode="number",
+
+        value=total_contacts,
+
+        number={
+            "valueformat": ",",
+            "font": {
+                "size": 42,
+                "color": BLUE
+            }
+        }
+
+    ),
+
+    row=1,
+    col=1
+)
+
+
+# ================================================================
+# 11. KPI - SUCCESSFUL CONVERSIONS
+# ================================================================
+
+fig.add_trace(
+
+    go.Indicator(
+
+        mode="number",
+
+        value=total_conversions,
+
+        number={
+            "valueformat": ",",
+            "font": {
+                "size": 42,
+                "color": GREEN
+            }
+        }
+
+    ),
+
+    row=1,
+    col=2
+)
+
+
+# ================================================================
+# 12. KPI - CONVERSION RATE
+# ================================================================
+
+fig.add_trace(
+
+    go.Indicator(
+
+        mode="number",
+
+        value=conversion_rate,
+
+        number={
+            "suffix": "%",
+            "valueformat": ".2f",
+            "font": {
+                "size": 38,
+                "color": TEAL
+            }
+        }
+
+    ),
+
+    row=2,
+    col=1
+)
+
+
+# ================================================================
+# 13. KPI - DROP-OFF RATE
+# ================================================================
+
+fig.add_trace(
+
+    go.Indicator(
+
+        mode="number",
+
+        value=dropoff_rate,
+
+        number={
+            "suffix": "%",
+            "valueformat": ".2f",
+            "font": {
+                "size": 38,
+                "color": RED
+            }
+        }
+
+    ),
+
+    row=2,
+    col=2
+)
+
+
+# ================================================================
+# 14. MARKETING FUNNEL
+# ================================================================
+
+fig.add_trace(
+
+    go.Funnel(
+
+        y=[
+            "Total Contacts",
+            "Successful Conversions"
+        ],
+
+        x=[
+            total_contacts,
+            total_conversions
+        ],
+
+        textinfo="value+percent initial",
+
+        marker={
+            "color": [
+                BLUE,
+                TEAL
+            ]
+        },
+
+        connector={
+            "line": {
+                "color": LIGHT_GRAY
+            }
+        }
+
+    ),
+
+    row=3,
+    col=1
+)
+
+
+# ================================================================
+# 15. CONTACT CHANNEL
+# ================================================================
+
+fig.add_trace(
+
+    go.Bar(
+
+        x=channel_data.index,
+
+        y=channel_data.values,
+
+        text=[
+            f"{x:.1f}%"
+            for x in channel_data.values
+        ],
+
+        textposition="outside",
+
+        marker_color=BLUE,
+
+        hovertemplate=
+        "<b>%{x}</b><br>"
+        "Conversion Rate: %{y:.2f}%"
+        "<extra></extra>"
+
+    ),
+
+    row=3,
+    col=2
+)
+
+
+# ================================================================
+# 16. AGE GROUP
+# ================================================================
+
+fig.add_trace(
+
+    go.Bar(
+
+        x=age_data.index.astype(str),
+
+        y=age_data.values,
+
+        text=[
+            f"{x:.1f}%"
+            for x in age_data.values
+        ],
+
+        textposition="outside",
+
+        marker_color=TEAL,
+
+        hovertemplate=
+        "<b>Age Group: %{x}</b><br>"
+        "Conversion Rate: %{y:.2f}%"
+        "<extra></extra>"
+
+    ),
+
+    row=4,
+    col=1
+)
+
+
+# ================================================================
+# 17. JOB
+# ================================================================
+
+fig.add_trace(
+
+    go.Bar(
+
+        x=job_data.values,
+
+        y=job_data.index,
+
+        orientation="h",
+
+        text=[
+            f"{x:.1f}%"
+            for x in job_data.values
+        ],
+
+        textposition="outside",
+
+        marker_color=LIGHT_BLUE,
+
+        hovertemplate=
+        "<b>%{y}</b><br>"
+        "Conversion Rate: %{x:.2f}%"
+        "<extra></extra>"
+
+    ),
+
+    row=4,
+    col=2
+)
+
+
+# ================================================================
+# 18. EDUCATION
+# ================================================================
+
+fig.add_trace(
+
+    go.Bar(
+
+        x=education_data.index,
+
+        y=education_data.values,
+
+        text=[
+            f"{x:.1f}%"
+            for x in education_data.values
+        ],
+
+        textposition="outside",
+
+        marker_color=BLUE,
+
+        hovertemplate=
+        "<b>%{x}</b><br>"
+        "Conversion Rate: %{y:.2f}%"
+        "<extra></extra>"
+
+    ),
+
+    row=5,
+    col=1
+)
+
+
+# ================================================================
+# 19. MONTHLY CONVERSION TREND
+# ================================================================
+
+fig.add_trace(
+
+    go.Scatter(
+
+        x=month_data.index,
+
+        y=month_data.values,
+
+        mode="lines+markers",
+
+        line={
+            "color": TEAL,
+            "width": 3
+        },
+
+        marker={
+            "color": BLUE,
+            "size": 8
+        },
+
+        hovertemplate=
+        "<b>%{x}</b><br>"
+        "Conversion Rate: %{y:.2f}%"
+        "<extra></extra>"
+
+    ),
+
+    row=5,
+    col=2
+)
+
+
+# ================================================================
+# 20. PREVIOUS CAMPAIGN OUTCOME
+# ================================================================
+
+fig.add_trace(
+
+    go.Bar(
+
+        x=previous_data.index,
+
+        y=previous_data.values,
+
+        text=[
+            f"{x:.1f}%"
+            for x in previous_data.values
+        ],
+
+        textposition="outside",
+
+        marker_color=TEAL,
+
+        hovertemplate=
+        "<b>%{x}</b><br>"
+        "Conversion Rate: %{y:.2f}%"
+        "<extra></extra>"
+
+    ),
+
+    row=6,
+    col=1
+)
+
+
+# ================================================================
+# 21. CONVERSION OVERVIEW
+# ================================================================
+
+overview_labels = [
+    "Converted",
+    "Not Converted"
+]
+
+overview_values = [
+    total_conversions,
+    total_dropoffs
+]
+
+fig.add_trace(
+
+    go.Bar(
+
+        x=overview_labels,
+
+        y=overview_values,
+
+        text=[
+            f"{x:,}"
+            for x in overview_values
+        ],
+
+        textposition="outside",
+
+        marker_color=[
+            GREEN,
+            RED
+        ],
+
+        hovertemplate=
+        "<b>%{x}</b><br>"
+        "Customers: %{y:,}"
+        "<extra></extra>"
+
+    ),
+
+    row=6,
+    col=2
+)
+
+
+# ================================================================
+# 22. UPDATE AXES
+# ================================================================
+
+fig.update_xaxes(
+    showgrid=False
+)
+
+fig.update_yaxes(
+    showgrid=True,
+    gridcolor=LIGHT_GRAY,
+    zeroline=False
+)
+
+
+# Percentage axes
+
+fig.update_yaxes(
+    ticksuffix="%",
+    row=3,
+    col=2
+)
+
+fig.update_yaxes(
+    ticksuffix="%",
+    row=4,
+    col=1
+)
+
+fig.update_xaxes(
+    ticksuffix="%",
+    row=4,
+    col=2
+)
+
+fig.update_yaxes(
+    ticksuffix="%",
+    row=5,
+    col=1
+)
+
+fig.update_yaxes(
+    ticksuffix="%",
+    row=5,
+    col=2
+)
+
+fig.update_yaxes(
+    ticksuffix="%",
+    row=6,
+    col=1
+)
+
+
+# ================================================================
+# 23. DASHBOARD LAYOUT
+# ================================================================
+
+fig.update_layout(
+
+    title=dict(
+
+        text=
+        "MARKETING FUNNEL & CONVERSION PERFORMANCE"
+        "<br>"
+        "<sup>Future Interns | Data Science & Analytics | Task 3</sup>",
+
+        x=0.5,
+
+        xanchor="center",
+
+        font={
+            "size": 27,
+            "color": NAVY
+        }
+
+    ),
+
+    # Reduced overall height
+    height=1800,
+
+    width=1400,
+
+    # Reduced margins
+    margin=dict(
+        l=60,
+        r=60,
+        t=115,
+        b=45
+    ),
+
+    paper_bgcolor=BACKGROUND,
+
+    plot_bgcolor=WHITE,
+
+    font=dict(
+        family="Arial",
+        color=NAVY,
+        size=12
+    ),
+
+    showlegend=False
+)
+
+
+# ================================================================
+# 24. MAKE SUBPLOT TITLES PROFESSIONAL
+# ================================================================
+
+for annotation in fig.layout.annotations:
+
+    annotation.font = dict(
+        size=14,
+        color=DARK_BLUE
+    )
+
+
+# ================================================================
+# 25. EXPORT INTERACTIVE DASHBOARD
+# ================================================================
+
+dashboard_file = (
+    "Future_Interns_Task_3_Dashboard.html"
+)
+
+fig.write_html(
+    dashboard_file,
+    include_plotlyjs=True
+)
+
+print(
+    f"\nDashboard saved as: {dashboard_file}"
+)
+
+
+# ================================================================
+# 26. EXPORT ANALYSIS FILES
+# ================================================================
+
+df.to_csv(
+    "task3_cleaned_data.csv",
+    index=False
+)
+
+channel_data.to_csv(
+    "task3_contact_analysis.csv"
+)
+
+age_data.to_csv(
+    "task3_age_analysis.csv"
+)
+
+job_data.to_csv(
+    "task3_job_analysis.csv"
+)
+
+education_data.to_csv(
+    "task3_education_analysis.csv"
+)
+
+month_data.to_csv(
+    "task3_month_analysis.csv"
+)
+
+previous_data.to_csv(
+    "task3_previous_campaign_analysis.csv"
+)
+
+
+# ================================================================
+# 27. DISPLAY DASHBOARD
+# ================================================================
+
+fig.show()
+
+
+# ================================================================
+# 28. KEY INSIGHTS
+# ================================================================
+
+best_channel = channel_data.idxmax()
+best_channel_rate = channel_data.max()
+
+best_job = job_data.idxmax()
+best_job_rate = job_data.max()
+
+best_age = age_data.idxmax()
+best_age_rate = age_data.max()
+
+best_education = education_data.idxmax()
+best_education_rate = education_data.max()
+
+best_previous = previous_data.idxmax()
+best_previous_rate = previous_data.max()
+
+
+print("\n" + "=" * 60)
+print("KEY BUSINESS INSIGHTS")
+print("=" * 60)
+
+print(
+    f"\nOverall Conversion Rate: "
+    f"{conversion_rate:.2f}%"
+)
+
+print(
+    f"Overall Drop-off Rate: "
+    f"{dropoff_rate:.2f}%"
+)
+
+print(
+    f"\nBest Contact Channel: "
+    f"{best_channel} "
+    f"({best_channel_rate:.2f}%)"
+)
+
+print(
+    f"Best Age Group: "
+    f"{best_age} "
+    f"({best_age_rate:.2f}%)"
+)
+
+print(
+    f"Best Job Segment: "
+    f"{best_job} "
+    f"({best_job_rate:.2f}%)"
+)
+
+print(
+    f"Best Education Segment: "
+    f"{best_education} "
+    f"({best_education_rate:.2f}%)"
+)
+
+print(
+    f"Best Previous Campaign Outcome: "
+    f"{best_previous} "
+    f"({best_previous_rate:.2f}%)"
+)
+
+
+# ================================================================
+# 29. BUSINESS RECOMMENDATIONS
+# ================================================================
+
+print("\n" + "=" * 60)
+print("BUSINESS RECOMMENDATIONS")
+print("=" * 60)
+
+print(
+    "\n1. Focus marketing efforts on high-conversion customer segments."
+)
+
+print(
+    "2. Prioritize communication channels with stronger conversion performance."
+)
+
+print(
+    "3. Use customer demographics for better campaign personalization."
+)
+
+print(
+    "4. Use previous campaign outcomes to improve customer targeting."
+)
+
+print(
+    "5. Monitor conversion and drop-off rates regularly."
+)
+
+print(
+    "6. Optimize campaign timing based on monthly performance."
+)
+
+print(
+    "7. Avoid excessive repeated contact and improve campaign targeting."
+)
+
+print("\n" + "=" * 60)
+print("TASK 3 ANALYSIS COMPLETED SUCCESSFULLY")
+print("=" * 60)
